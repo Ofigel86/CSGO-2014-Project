@@ -127,6 +127,10 @@ public:
     NETVAR(int, m_flags, "CBasePlayer", "m_fFlags");
     NETVAR(int, m_health, "CBasePlayer", "m_iHealth");
     NETVAR(Vector, m_view_offset, "CBasePlayer", "m_vecViewOffset[0]");
+    NETVAR(Vector, m_velocity, "CBasePlayer", "m_vecVelocity[0]");
+    NETVAR(int, m_move_type, "CBaseEntity", "m_MoveType");
+    NETVAR(float, m_duck_amount, "CBasePlayer", "m_flDuckAmount");
+    NETVAR(float, m_next_attack, "CBaseCombatCharacter", "m_flNextAttack");
     NETVAR(QAngle, m_aim_punch_angle, "CBasePlayer", "m_aimPunchAngle");
     NETVAR(QAngle, m_view_punch_angle, "CBasePlayer", "m_viewPunchAngle");
 };

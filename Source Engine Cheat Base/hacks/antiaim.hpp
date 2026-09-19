@@ -1,35 +1,37 @@
 #pragma once
 #include "../math/QAngle.hpp"
 #include "../interfaces/classes/CInput.hpp"
-#include <deque>
+
+// Fix for Vector.hpp #define ZERO macro that breaks enum
+#ifdef ZERO
+#undef ZERO
+#endif
 
 class CUserCmd;
 
-// Reversed logic for fake angles in 2014 build
-// Classic 2014 desync method:
-// - When bSendPacket = false, server doesn't receive angle -> fake for enemies
-// - When bSendPacket = true, server receives angle -> real
-// - Max desync delta in 2014 was ~58 degrees (from CCSGOPlayerAnimState)
-// - We can achieve 180 fake via packet choking + LBY breaking
+// 2014 CS:GO - NO LBY! LBY was added in 2015-2016 update
+// In 2014 fake angle is done via simple bSendPacket choke
+// Real = what server sees (when bSendPacket=true)
+// Fake = what enemies see (when bSendPacket=false, choked)
 
-enum class EAntiAimMode
+enum class EAntiAimYaw
 {
     NONE = 0,
-    BACKWARDS,
-    SIDEWAYS,
-    STATIC_180,
-    JITTER,
-    DESYNC_58,
-    LBY_BREAKER
+    BACKWARDS,      // 180
+    SIDEWAYS,       // 90 / -90
+    STATIC_180,     // Real 180, Fake 0
+    JITTER,         // Switch 90/-90 each tick
+    DESYNC,         // Simple desync (real 0, fake +58 or +180)
+    SPIN            // Spinbot
 };
 
 enum class EAntiAimPitch
 {
     NONE = 0,
-    DOWN,
-    UP,
-    ZERO_AA,
-    JITTER_PITCH
+    DOWN,           // 89
+    UP,             // -89
+    ZERO_AA,        // 0 - renamed from ZERO to avoid macro conflict
+    JITTER_PITCH    // 89/-89 jitter
 };
 
 class c_antiaim
@@ -38,42 +40,21 @@ public:
     c_antiaim();
     ~c_antiaim();
 
-    // Main entry from CreateMove
     void instance(CUserCmd* cmd, bool& send_packet);
 
-    // Angle generators
-    QAngle get_real_angle(QAngle original);
-    QAngle get_fake_angle(QAngle original);
-    QAngle get_real_angle();
-    QAngle get_fake_angle();
-    float get_max_desync_delta();
-
-    // Helpers
-    void run_yaw(CUserCmd* cmd, bool& send_packet);
     void run_pitch(CUserCmd* cmd);
-    void run_lby_breaker(CUserCmd* cmd, bool& send_packet);
-    
-    // State tracking for packet manager
+    void run_yaw(CUserCmd* cmd, bool& send_packet);
+
     QAngle m_real_angle = QAngle(0, 0, 0);
     QAngle m_fake_angle = QAngle(0, 0, 0);
-    QAngle m_last_real_angle = QAngle(0, 0, 0);
-    QAngle m_last_fake_angle = QAngle(0, 0, 0);
     
-    // For LBY breaker
-    float m_next_lby_update = 0.0f;
-    bool m_should_break_lby = false;
-    int m_choked_ticks = 0;
-    
-    // For jitter
     bool m_jitter_side = false;
+    float m_spin_yaw = 0.0f;
     
-    // Config
-    EAntiAimMode m_yaw_mode = EAntiAimMode::DESYNC_58;
+    EAntiAimYaw m_yaw_mode = EAntiAimYaw::DESYNC;
     EAntiAimPitch m_pitch_mode = EAntiAimPitch::DOWN;
     
-    // Packet manager integration
-    bool m_is_fake_angle_active = false;
-    int m_fake_lag_ticks = 1;
+    bool m_is_active = false;
 };
 
 extern c_antiaim* g_antiaim;
