@@ -14,6 +14,8 @@ public:
     bool ragebot_enabled = false;
     bool ragebot_autofire = false;
     bool ragebot_autoscope = false;
+    bool ragebot_resolver = false; // resolver against jitters using lag records
+    int ragebot_resolver_mode = 0; // 0-jitter detect, 1-bruteforce, 2-velocity
 
     bool legitbot_enabled = false;
 

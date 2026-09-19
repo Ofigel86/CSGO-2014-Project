@@ -20,6 +20,15 @@ void c_gui::draw_rage_tab()
             ImGui::Checkbox("Enable ragebot", &g_variables->ragebot_enabled);
             ImGui::Checkbox("Auto fire", &g_variables->ragebot_autofire);
             ImGui::Checkbox("Auto scope", &g_variables->ragebot_autoscope);
+            
+            ImGui::Separator();
+            ImGui::Text("Resolver vs Jitters (Lag Records)");
+            ImGui::Checkbox("Enable Resolver", &g_variables->ragebot_resolver);
+            const char* resolver_modes[] = { "Jitter Detect (avg)", "Bruteforce (4 angles)", "Velocity (moving)" };
+            ImGui::Combo("Resolver Mode", &g_variables->ragebot_resolver_mode, resolver_modes, IM_ARRAYSIZE(resolver_modes));
+            ImGui::Text("Uses lag records to detect jitter pattern");
+            ImGui::Text("Fixed jitter: avg of +range/-range = real");
+            ImGui::Text("Random jitter: bruteforce 0/180/90/-90");
         }
     }
 

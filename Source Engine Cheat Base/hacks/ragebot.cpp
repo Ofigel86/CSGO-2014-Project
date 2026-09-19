@@ -1,5 +1,8 @@
 #include "autowall.hpp"
 #include "ragebot.hpp"
+#include "lag_comp.hpp"
+#include "resolver.hpp"
+#include "../config/config.hpp"
 
 c_ragebot* g_ragebot = new c_ragebot();
 
@@ -15,6 +18,16 @@ void c_ragebot::instance(CUserCmd* command)
         return;
     if (g_context->local_weapon->is_non_aim())
         return;
+
+    // Update lag comp and resolver (lag records against jitters)
+    if (g_lag_comp)
+    {
+        __try { g_lag_comp->instance(); } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
+    if (g_resolver)
+    {
+        __try { g_resolver->instance(); } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
 
     target_index = -1;
     target_selection();
@@ -117,6 +130,40 @@ void c_ragebot::aim_at_target(CUserCmd* command, c_cs_player* target)
 {
     if (!command || !target || !g_context || !g_context->local_player)
         return;
+
+    // Resolver against jitters using lag records
+    if (g_variables && g_variables->ragebot_resolver && g_resolver && g_lag_comp)
+    {
+        __try {
+            // Find target index
+            int idx = -1;
+            auto entity_list = g_interfaces->get_client_entity_list();
+            if (entity_list)
+            {
+                for (int i = 1; i < 65; i++)
+                {
+                    if (entity_list->GetClientEntity(i) == target)
+                    {
+                        idx = i;
+                        break;
+                    }
+                }
+            }
+            
+            if (idx != -1)
+            {
+                auto record = g_lag_comp->get_latest_record(idx);
+                if (record && g_resolver->is_jittering_from_history(idx))
+                {
+                    // Use resolved angle for aimbot point adjustment
+                    // For 2014, resolver tries to predict real angle from jitter pattern
+                    QAngle resolved = g_resolver->get_resolved_angle(idx);
+                    // If resolved valid, we could adjust aim point, but for now just use normal
+                    // The resolver already overrides record's eye angles
+                }
+            }
+        } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
 
     Vector aimbot_point = get_aimbot_point(target);
     if (aimbot_point.IsZero())
