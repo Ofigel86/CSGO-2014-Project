@@ -1,0 +1,22 @@
+name: Build CSGO SDK DLL
+
+on:
+  push:
+    branches: [ main, arena/* ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: microsoft/setup-msbuild@v2
+    - name: Build Release Win32
+      run: |
+        msbuild "Source Engine Cheat Base.sln" /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0 /verbosity:minimal
+      shell: cmd
+    - name: Upload DLL artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: csgosdk-dll
+        path: Source Engine Cheat Base/compile/csgosdk.dll
