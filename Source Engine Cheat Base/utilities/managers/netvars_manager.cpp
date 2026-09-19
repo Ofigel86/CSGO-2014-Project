@@ -1,71 +1,73 @@
-// This is an independent project of an individual developer. Dear PVS-Studio, please check it.
-// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: http://www.viva64.com
-
 #include "netvars_manager.hpp"
 #include <cctype>
+#include <cstring>
 
 int netvars::get_offset(const char *tableName, const char *propName) 
 {
-	int offs = get_prop(tableName, propName);
-
-	if (!offs)
-		return 0;
-
-	return offs;
+    if (!tableName || !propName)
+        return 0;
+    int offs = get_prop(tableName, propName);
+    return offs;
 }
 
 int netvars::get_prop(const char *tableName, const char *propName, RecvProp **prop) 
 {
-	RecvTable *recvTable = this->get_table(tableName);
+    if (!tableName || !propName)
+        return 0;
 
-	if (!recvTable)
-		return 0;
+    RecvTable *recvTable = this->get_table(tableName);
+    if (!recvTable)
+        return 0;
 
-	int offs = get_prop(recvTable, propName, prop);
-
-	if (!offs)
-		return 0;
-
-	return offs;
+    int offs = get_prop(recvTable, propName, prop);
+    return offs;
 }
 
 int netvars::get_prop(RecvTable *recvTable, const char *propName, RecvProp **prop) 
 {
-	int extrOffs = 0;
+    if (!recvTable || !propName)
+        return 0;
 
-	for (int i = 0; i < recvTable->propCount; i++) 
-	{
-		auto *recvProp = &recvTable->props[i];
-		auto recvChild = recvProp->dataTable;
+    for (int i = 0; i < recvTable->propCount; i++) 
+    {
+        auto *recvProp = &recvTable->props[i];
+        if (!recvProp)
+            continue;
 
-		if (recvChild && (recvChild->propCount > 0)) 
-		{
-			int tmp = get_prop(recvChild, propName, prop);
+        auto recvChild = recvProp->dataTable;
 
-			if (tmp)
-				extrOffs += (recvProp->offset + tmp);
-		}
+        if (recvChild && recvChild->propCount > 0) 
+        {
+            int tmp = get_prop(recvChild, propName, prop);
+            if (tmp)
+                return recvProp->offset + tmp;
+        }
 
-		if (strcmp(recvProp->name, propName)) //-V526
-			continue;
+        if (!recvProp->name)
+            continue;
 
-		if (prop)
-			*prop = recvProp;
+        if (strcmp(recvProp->name, propName) != 0)
+            continue;
 
-		return (recvProp->offset + extrOffs);
-	}
+        if (prop)
+            *prop = recvProp;
 
-	return extrOffs;
+        return recvProp->offset;
+    }
+
+    return 0;
 }
 
 RecvTable *netvars::get_table(const char *tableName) 
 {
-	if (tables.empty())
-		return 0;
+    if (tables.empty() || !tableName)
+        return nullptr;
 
-	for (auto table : tables) 
-		if (!strcmp(table.first.c_str(), tableName))
-			return table.second;
+    for (auto &table : tables) 
+    {
+        if (table.first == tableName)
+            return table.second;
+    }
 
-	return 0;
+    return nullptr;
 }

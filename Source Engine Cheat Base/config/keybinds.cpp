@@ -2,25 +2,52 @@
 
 #include <Windows.h>
 
-c_keybinds* g_keybinds = new c_keybinds;
+c_keybinds* g_keybinds = new c_keybinds();
 
 void c_keybinds::handle_toggled_keybinds()
 {
-	static size_t last_time = 0;
+    if (!g_variables)
+        return;
 
-	if (GetAsyncKeyState(g_variables->visuals_thirdperson_key))
-	{
-		if (GetTickCount() > last_time)
-		{
-			thirdperson = !thirdperson;
-			last_time = GetTickCount() + 650;
-		}
-	}
-	else if (!g_variables->visuals_thirdperson_key)
-		thirdperson = true;
+    static DWORD last_time = 0;
+    DWORD current_time = GetTickCount();
+
+    // Debounce handling
+    if (current_time < last_time)
+        last_time = 0;
+
+    int key = 0;
+    __try {
+        key = g_variables->visuals_thirdperson_key;
+    } __except(EXCEPTION_EXECUTE_HANDLER) { return; }
+
+    if (key > 0 && key < 256)
+    {
+        __try {
+            if (GetAsyncKeyState(key) & 0x8000)
+            {
+                if (current_time > last_time)
+                {
+                    thirdperson = !thirdperson;
+                    last_time = current_time + 350; // 350ms debounce
+                }
+            }
+        } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
+    else if (key == 0)
+    {
+        // If no key set, thirdperson follows the config bool
+        __try {
+            thirdperson = g_variables->visuals_thirdperson;
+        } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
 }
 
 bool c_keybinds::get_thirdperson_state()
 {
-	return thirdperson;
+    __try {
+        return thirdperson;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
 }

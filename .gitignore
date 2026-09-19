@@ -1,0 +1,43 @@
+# Build outputs
+compile/
+x64/
+Debug/
+Release/
+*.dll
+*.lib
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exp
+*.tlog
+*.log
+*.iobj
+*.ipdb
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.sdf
+*.opensdf
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+
+# Configs
+project3_config.json
+C:/project3_config.json
+
+# OS
+Thumbs.db
+Desktop.ini
+*.swp
+*.bak
+*~
+
+# IDE
+.idea/
+*.code-workspace

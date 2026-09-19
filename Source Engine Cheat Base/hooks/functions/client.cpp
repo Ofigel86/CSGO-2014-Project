@@ -6,88 +6,140 @@
 
 void __fastcall hk_create_move(void* ecx, void* edx, int sequence_number, float input_sample_time, bool active)
 {
-	static auto create_move_original = g_hooking_manager->client_dll_table->get_func_address<c_hooking::create_move_fn>(21);
+    static auto create_move_original = g_hooking_manager->client_dll_table ? 
+        g_hooking_manager->client_dll_table->get_func_address<c_hooking::create_move_fn>(21) : nullptr;
 
-	DWORD frame_ptr = 0x00000000;
+    if (!create_move_original)
+        return;
 
-	__asm
-	{
-		push active
-		push input_sample_time
-		push sequence_number
-		call create_move_original
-		mov frame_ptr, ebp
-	}
+    DWORD frame_ptr = 0;
 
-	PBYTE send_packet_ptr = (PBYTE)(*(PDWORD)(frame_ptr) - 0x1);
+#ifdef _MSC_VER
+    __asm
+    {
+        push active
+        push input_sample_time
+        push sequence_number
+        call create_move_original
+        mov frame_ptr, ebp
+    }
+#else
+    // For non-MSVC, call directly (less accurate but safe)
+    create_move_original(ecx, sequence_number, input_sample_time, active);
+#endif
 
-	CUserCmd* command = g_interfaces->get_input()->GetUserCmd(sequence_number);
-	CVerifiedUserCmd* verified_command = g_interfaces->get_input()->GetVerifiedUserCmd(sequence_number);
+    if (!g_interfaces || !g_context || !g_interfaces->get_input() || !g_interfaces->get_client_entity_list() || !g_interfaces->get_engine_client())
+        return;
 
-	if (!command || !command->m_command_number)
-		return;
+    PBYTE send_packet_ptr = nullptr;
+    __try {
+        if (frame_ptr)
+            send_packet_ptr = reinterpret_cast<PBYTE>(*reinterpret_cast<PDWORD>(frame_ptr) - 0x1);
+    } __except(EXCEPTION_EXECUTE_HANDLER) { send_packet_ptr = nullptr; }
 
-	if (!verified_command)
-		return;
+    CUserCmd* command = nullptr;
+    CVerifiedUserCmd* verified_command = nullptr;
 
-	g_context->local_player = reinterpret_cast<c_cs_player*>(g_interfaces->get_client_entity_list()->GetClientEntity(g_interfaces->get_engine_client()->GetLocalPlayer()));
+    __try {
+        command = g_interfaces->get_input()->GetUserCmd(sequence_number);
+        verified_command = g_interfaces->get_input()->GetVerifiedUserCmd(sequence_number);
+    } __except(EXCEPTION_EXECUTE_HANDLER) { return; }
 
-	if (!g_context->local_player)
-		return;
+    if (!command || !command->m_command_number)
+        return;
+    if (!verified_command)
+        return;
 
-	g_context->local_weapon = reinterpret_cast<c_base_combat_weapon*>(g_interfaces->get_client_entity_list()->GetClientEntityFromHandle(g_context->local_player->m_active_weapon()));
+    __try {
+        g_context->local_player = reinterpret_cast<c_cs_player*>(g_interfaces->get_client_entity_list()->GetClientEntity(g_interfaces->get_engine_client()->GetLocalPlayer()));
+    } __except(EXCEPTION_EXECUTE_HANDLER) { g_context->local_player = nullptr; return; }
 
-	g_context->old_angle = command->m_viewangles;
+    if (!g_context->local_player)
+        return;
 
-	g_movement->bunny_hop(command);
-	g_movement->auto_strafe(command);
+    __try {
+        auto handle = g_context->local_player->m_active_weapon();
+        g_context->local_weapon = reinterpret_cast<c_base_combat_weapon*>(g_interfaces->get_client_entity_list()->GetClientEntityFromHandle(handle));
+    } __except(EXCEPTION_EXECUTE_HANDLER) { g_context->local_weapon = nullptr; }
 
-	g_ragebot->instance(command);
-	g_legitbot->instance(command);
+    g_context->old_angle = command->m_viewangles;
 
-	g_nospread->instance(command);
+    if (g_movement)
+    {
+        g_movement->bunny_hop(command);
+        g_movement->auto_strafe(command);
+    }
 
-	g_movement->fix_movement(command);
+    if (g_ragebot)
+        g_ragebot->instance(command);
+    if (g_legitbot)
+        g_legitbot->instance(command);
+    if (g_nospread)
+        g_nospread->instance(command);
 
-	verified_command->m_cmd = *command;
-	verified_command->m_crc = command->GetChecksum();
+    if (g_movement)
+        g_movement->fix_movement(command);
+
+    __try {
+        verified_command->m_cmd = *command;
+        verified_command->m_crc = command->GetChecksum();
+    } __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
 
 void __fastcall hk_frame_stage_notify(void* ecx, void* edx, ClientFrameStage_t stage)
 {
-	static auto frame_stage_notify_original = g_hooking_manager->client_dll_table->get_func_address<c_hooking::frame_stage_notify_fn>(36);
+    static auto frame_stage_notify_original = g_hooking_manager->client_dll_table ?
+        g_hooking_manager->client_dll_table->get_func_address<c_hooking::frame_stage_notify_fn>(36) : nullptr;
 
-	g_keybinds->handle_toggled_keybinds();
+    if (!frame_stage_notify_original)
+        return;
 
-	QAngle* punch_angle = nullptr;
-	QAngle stored_punch_angle;
+    if (g_keybinds)
+    {
+        __try { g_keybinds->handle_toggled_keybinds(); } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
 
-	if (stage == FRAME_RENDER_START)
-	{
-		if (g_variables->removals_visual_recoil && g_context->local_player->is_alive())
-		{
-			punch_angle = &g_context->local_player->m_aim_punch_angle();
+    QAngle* punch_angle = nullptr;
+    QAngle stored_punch_angle{};
 
-			if (punch_angle)
-			{
-				stored_punch_angle = *punch_angle;
-				punch_angle->Init();
-			}
-		}
+    if (stage == FRAME_RENDER_START)
+    {
+        if (g_context && g_context->local_player && g_variables)
+        {
+            __try {
+                if (g_variables->removals_visual_recoil && g_context->local_player->is_alive())
+                {
+                    punch_angle = &g_context->local_player->m_aim_punch_angle();
+                    if (punch_angle)
+                    {
+                        stored_punch_angle = *punch_angle;
+                        punch_angle->Init();
+                    }
+                }
 
-		if (g_variables->removals_flash)
-			if (g_context->local_player->is_alive() && g_context->local_player->m_flash_duration() > 0.0)
-				g_context->local_player->m_flash_duration() = 0.0;
-	}
+                if (g_variables->removals_flash)
+                {
+                    if (g_context->local_player->is_alive() && g_context->local_player->m_flash_duration() > 0.0f)
+                        g_context->local_player->m_flash_duration() = 0.0f;
+                }
+            } __except(EXCEPTION_EXECUTE_HANDLER) { punch_angle = nullptr; }
+        }
+    }
 
-	frame_stage_notify_original(ecx, stage);
+    __try {
+        frame_stage_notify_original(ecx, stage);
+    } __except(EXCEPTION_EXECUTE_HANDLER) {}
 
-	if (punch_angle)
-		*punch_angle = stored_punch_angle;
+    if (punch_angle)
+    {
+        __try { *punch_angle = stored_punch_angle; } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
 }
 
 void c_hooking::initialize_client_dll()
 {
-	client_dll_table->hook_function(reinterpret_cast<uintptr_t>(hk_create_move), 21);
-	client_dll_table->hook_function(reinterpret_cast<uintptr_t>(hk_frame_stage_notify), 36);
+    if (!client_dll_table)
+        return;
+    client_dll_table->hook_function(reinterpret_cast<uintptr_t>(hk_create_move), 21);
+    client_dll_table->hook_function(reinterpret_cast<uintptr_t>(hk_frame_stage_notify), 36);
 }

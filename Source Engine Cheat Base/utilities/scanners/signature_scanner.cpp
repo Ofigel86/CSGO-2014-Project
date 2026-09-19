@@ -1,42 +1,53 @@
 #include "signature_scanner.hpp"
 
-c_scanners* g_scanners = new c_scanners;
+c_scanners* g_scanners = new c_scanners();
 
 uint64_t c_scanners::find_signature(const char* szModule, const char* szSignature)
 {
-	MODULEINFO modInfo;
-	GetModuleInformation(GetCurrentProcess(), GetModuleHandle(szModule), &modInfo, sizeof(MODULEINFO));
+    if (!szModule || !szSignature)
+        return 0;
 
-	uintptr_t startAddress = (DWORD)modInfo.lpBaseOfDll;
-	uintptr_t endAddress = startAddress + modInfo.SizeOfImage;
+    HMODULE hMod = GetModuleHandleA(szModule);
+    if (!hMod)
+        return 0;
 
-	const char* pat = szSignature;
-	uintptr_t firstMatch = 0;
+    MODULEINFO modInfo{};
+    if (!GetModuleInformation(GetCurrentProcess(), hMod, &modInfo, sizeof(MODULEINFO)))
+        return 0;
 
-	for (auto pCur = startAddress; pCur < endAddress; pCur++)
-	{
-		if (!*pat)
-			return firstMatch;
+    if (!modInfo.lpBaseOfDll || modInfo.SizeOfImage == 0)
+        return 0;
 
-		if (*(PBYTE)pat == '\?' || *(BYTE*)pCur == GETBYTE(pat))
-		{
-			if (!firstMatch)
-				firstMatch = pCur;
+    uintptr_t startAddress = reinterpret_cast<uintptr_t>(modInfo.lpBaseOfDll);
+    uintptr_t endAddress = startAddress + modInfo.SizeOfImage;
 
-			if (!pat[2])
-				return firstMatch;
+    const char* pat = szSignature;
+    uintptr_t firstMatch = 0;
 
-			if (*(PWORD)pat == '\?\?' || *(PBYTE)pat != '\?')
-				pat += 3;
-			else
-				pat += 2;
-		}
-		else
-		{
-			pat = szSignature;
-			firstMatch = 0;
-		}
-	}
+    for (auto pCur = startAddress; pCur < endAddress; pCur++)
+    {
+        if (!*pat)
+            return firstMatch;
 
-	return 0;
+        if (*(PBYTE)pat == '\?' || *(BYTE*)pCur == GETBYTE(pat))
+        {
+            if (!firstMatch)
+                firstMatch = pCur;
+
+            if (!pat[2])
+                return firstMatch;
+
+            if (*(PWORD)pat == '\?\?' || *(PBYTE)pat != '\?')
+                pat += 3;
+            else
+                pat += 2;
+        }
+        else
+        {
+            pat = szSignature;
+            firstMatch = 0;
+        }
+    }
+
+    return 0;
 }
