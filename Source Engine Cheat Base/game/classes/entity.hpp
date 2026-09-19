@@ -142,7 +142,7 @@ public:
     NETVAR(bool, m_has_defuser, "CCSPlayer", "m_bHasDefuser");
     NETVAR(IHandleEntity*, m_active_weapon, "CBaseCombatCharacter", "m_hActiveWeapon");
 
-    bool is_alive() const
+    bool is_alive()
     {
         if (!this)
             return false;
@@ -153,7 +153,7 @@ public:
         }
     }
 
-    Vector get_eye_position() const
+    Vector get_eye_position()
     {
         if (!this)
             return Vector(0,0,0);
@@ -164,7 +164,7 @@ public:
         }
     }
 
-    Vector get_bone_position(int bone) const
+    Vector get_bone_position(int bone)
     {
         if (!this)
             return Vector(0,0,0);

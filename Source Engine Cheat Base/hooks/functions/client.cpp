@@ -14,7 +14,7 @@ void __fastcall hk_create_move(void* ecx, void* edx, int sequence_number, float 
 
     DWORD frame_ptr = 0;
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
     __asm
     {
         push active
@@ -24,8 +24,9 @@ void __fastcall hk_create_move(void* ecx, void* edx, int sequence_number, float 
         mov frame_ptr, ebp
     }
 #else
-    // For non-MSVC, call directly (less accurate but safe)
-    create_move_original(ecx, sequence_number, input_sample_time, active);
+    // For non-MSVC or Clang, call directly (less accurate but safe)
+    if (create_move_original)
+        create_move_original(ecx, sequence_number, input_sample_time, active);
 #endif
 
     if (!g_interfaces || !g_context || !g_interfaces->get_input() || !g_interfaces->get_client_entity_list() || !g_interfaces->get_engine_client())

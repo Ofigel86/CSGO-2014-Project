@@ -6,7 +6,7 @@
 #include "../../utilities/other/vfunc.hpp"
 #include "IClientEntity.hpp"
 #include "ClientClass.hpp"
-#include <Windows.h>
+#include <windows.h>
 
 struct Ray_t
 {

@@ -1,6 +1,6 @@
 #include "interfaces.hpp"
 
-#include <Windows.h>
+#include <windows.h>
 
 c_interfaces* g_interfaces = new c_interfaces();
 

@@ -28,7 +28,7 @@ class c_gui
 	void draw_tabs_bar();
 	void draw_content();
 public:
-	void initialize(PDIRECT3DDEVICE9 device);
+	void initialize(IDirect3DDevice9* device);
 	void setup_gui_style();
 	void begin_draw_frame();
 	void end_draw_frame();

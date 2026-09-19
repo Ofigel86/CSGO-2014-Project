@@ -3,7 +3,7 @@
 
 c_gui* g_gui = new c_gui();
 
-void c_gui::initialize(PDIRECT3DDEVICE9 device)
+void c_gui::initialize(IDirect3DDevice9* device)
 {
     if (initialized_directx || !device)
         return;
