@@ -85,12 +85,22 @@ void __fastcall hk_create_move(void* ecx, void* edx, int sequence_number, float 
         g_movement->auto_strafe(command);
     }
 
-    // Packet manager + AntiAim (Fake Angle) - reversed from client.dll
-    // In 2014 build, fake angles work by choking packets with bSendPacket = false
+    // Packet manager + AntiAim (Fake Angle) - 2014 style, NO LBY!
+    // In 2014, fake angle = simple bSendPacket choke, no LBY breaker
     bool bSendPacketState = true;
     if (bSendPacket)
         bSendPacketState = *bSendPacket;
 
+    // Fake lag first (determines if we should choke)
+    if (g_packet_manager && bSendPacket && g_variables && g_variables->antiaim_fakelag_enabled)
+    {
+        __try {
+            g_packet_manager->HandleFakeLag(bSendPacket, command);
+            bSendPacketState = *bSendPacket;
+        } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
+
+    // AntiAim - uses bSendPacket to create desync
     if (g_antiaim)
     {
         __try {
@@ -98,30 +108,13 @@ void __fastcall hk_create_move(void* ecx, void* edx, int sequence_number, float 
         } __except(EXCEPTION_EXECUTE_HANDLER) {}
     }
 
-    // Apply bSendPacket state back to game (packet manager)
-    if (bSendPacket && g_packet_manager)
+    // Final apply to game
+    if (bSendPacket)
     {
         __try {
             *bSendPacket = bSendPacketState;
-            g_packet_manager->set_send_packet(bSendPacketState);
-        } __except(EXCEPTION_EXECUTE_HANDLER) {}
-    }
-
-    // Fake lag management (part of packet manager)
-    if (g_packet_manager && g_variables && g_variables->antiaim_fakelag_enabled)
-    {
-        __try {
-            int choked = g_packet_manager->get_choked_commands();
-            if (choked < g_variables->antiaim_fakelag_ticks)
-            {
-                if (bSendPacket)
-                    *bSendPacket = false;
-            }
-            else
-            {
-                if (bSendPacket)
-                    *bSendPacket = true;
-            }
+            if (g_packet_manager)
+                g_packet_manager->set_send_packet(bSendPacketState);
         } __except(EXCEPTION_EXECUTE_HANDLER) {}
     }
 
