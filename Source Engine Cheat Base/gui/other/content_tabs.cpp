@@ -26,8 +26,25 @@ void c_gui::draw_rage_tab()
     if (current_subtab_rage == 1)
     {
         if (g_variables)
+        {
             ImGui::Checkbox("Enable antiaim", &g_variables->antiaim_enabled);
-        ImGui::Text("Soon...");
+            
+            const char* yaw_modes[] = { "None", "Backwards", "Sideways", "180", "Jitter", "Desync 58 (2014)", "LBY Breaker" };
+            const char* pitch_modes[] = { "None", "Down", "Up", "Zero", "Jitter" };
+            
+            ImGui::Combo("Yaw mode", &g_variables->antiaim_yaw_mode, yaw_modes, IM_ARRAYSIZE(yaw_modes));
+            ImGui::Combo("Pitch mode", &g_variables->antiaim_pitch_mode, pitch_modes, IM_ARRAYSIZE(pitch_modes));
+            
+            ImGui::Separator();
+            ImGui::Text("Packet Manager (reversed from engine.dll)");
+            ImGui::Checkbox("Fake lag", &g_variables->antiaim_fakelag_enabled);
+            ImGui::SliderInt("Fake lag ticks", &g_variables->antiaim_fakelag_ticks, 1, 14);
+            ImGui::Checkbox("LBY breaker", &g_variables->antiaim_lby_breaker);
+            
+            ImGui::Separator();
+            ImGui::Text("Info: Desync 58 uses bSendPacket choking");
+            ImGui::Text("Real = server, Fake = enemies see");
+        }
     }
 }
 

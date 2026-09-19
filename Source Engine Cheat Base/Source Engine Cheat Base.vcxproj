@@ -183,6 +183,8 @@
     <ClCompile Include="hacks\view.cpp" />
     <ClCompile Include="hacks\visuals.cpp" />
     <ClCompile Include="hacks\world.cpp" />
+    <ClCompile Include="hacks\antiaim.cpp" />
+    <ClCompile Include="utilities\managers\packet_manager.cpp" />
     <ClCompile Include="hooks\functions\client.cpp" />
     <ClCompile Include="hooks\functions\client_mode.cpp" />
     <ClCompile Include="hooks\functions\directx_device.cpp" />
@@ -231,6 +233,8 @@
     <ClInclude Include="hacks\view.hpp" />
     <ClInclude Include="hacks\visuals.hpp" />
     <ClInclude Include="hacks\world.hpp" />
+    <ClInclude Include="hacks\antiaim.hpp" />
+    <ClInclude Include="utilities\managers\packet_manager.hpp" />
     <ClInclude Include="hooks\hooks.hpp" />
     <ClInclude Include="interfaces\classes\CInput.hpp" />
     <ClInclude Include="interfaces\classes\ClientClass.hpp" />
