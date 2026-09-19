@@ -131,58 +131,81 @@ void c_antiaim::run_yaw(CUserCmd* cmd, bool& send_packet)
     QAngle real = original;
     QAngle fake = original;
 
+    // 2014 limit: max fake = 90 deg total. If set >90, real moves away!
+    // So clamp jitter_range to 90 max for desync, and to 45 for jitter both sides (diff 90)
+    float clamped_range = m_jitter_range;
+    if (clamped_range > MAX_DESYNC_2014) clamped_range = MAX_DESYNC_2014;
+    if (clamped_range < -MAX_DESYNC_2014) clamped_range = -MAX_DESYNC_2014;
+
+    // For jitter mode where real=+range fake=-range, total diff = 2*range must be <=90
+    // So half range max = 45
+    float jitter_half = m_jitter_range;
+    if (jitter_half > MAX_JITTER_HALF_2014) jitter_half = MAX_JITTER_HALF_2014;
+    if (jitter_half < -MAX_JITTER_HALF_2014) jitter_half = -MAX_JITTER_HALF_2014;
+
     // Configurable jitter radius at max speed
-    // m_jitter_tick already incremented in run_pitch, but ensure
-    // For yaw we also need max speed jitter every tick
     bool should_jitter_yaw = (m_jitter_tick % m_jitter_speed) == 0;
     if (should_jitter_yaw)
         m_jitter_side = !m_jitter_side;
 
-    // Simple bSendPacket fake angle - 2014 style
+    // Simple bSendPacket fake angle - 2014 style with 90 max
     switch (m_yaw_mode)
     {
     case EAntiAimYaw::BACKWARDS:
-        cmd->m_viewangles.yaw = original.yaw + 180.0f;
+        // In 2014 backwards 180 would move real! Max is 90.
+        // So backwards = original + 90 (max desync) not 180
+        cmd->m_viewangles.yaw = original.yaw + clamped_range; // clamped to 90
+        // If user set range 45, backwards = +45, but for true backwards use 90
+        // Override to 90 for backwards mode to maximize
+        if (fabs(m_jitter_range) < 80.0f) // if user left default 45, use 90 for backwards
+            cmd->m_viewangles.yaw = original.yaw + MAX_DESYNC_2014;
         m_real_angle = cmd->m_viewangles;
         m_fake_angle = cmd->m_viewangles;
         break;
 
     case EAntiAimYaw::SIDEWAYS:
-        // Configurable radius: 90 becomes m_jitter_range
+        // Sideways = 90 / -90 max, use clamped_range
         if (m_jitter_side)
-            cmd->m_viewangles.yaw = original.yaw + m_jitter_range;
+            cmd->m_viewangles.yaw = original.yaw + clamped_range;
         else
-            cmd->m_viewangles.yaw = original.yaw - m_jitter_range;
+            cmd->m_viewangles.yaw = original.yaw - clamped_range;
         m_real_angle = cmd->m_viewangles;
         break;
 
     case EAntiAimYaw::STATIC_180:
+        // STATIC_180 in 2014 impossible with 90 limit: 180 would move real
+        // So we do: real = original, fake = original + 90 = max desync
+        // Or real = original+90, fake = original = 90 desync
+        // Implement as: real = original, fake = original + 90 (max)
+        real.yaw = original.yaw;
+        fake.yaw = original.yaw + MAX_DESYNC_2014; // 90 max, not 180!
+
         if (send_packet)
         {
-            real.yaw = original.yaw + 180.0f;
             cmd->m_viewangles.yaw = real.yaw;
             m_real_angle = real;
         }
         else
         {
-            fake.yaw = original.yaw;
             cmd->m_viewangles.yaw = fake.yaw;
             m_fake_angle = fake;
         }
         break;
 
     case EAntiAimYaw::JITTER:
-        // Configurable radius jitter at MAX SPEED (every tick)
-        // Default jitters: switch between +range and -range as fast as possible
-        // User wants: radius configurable, jitters default at max speed
+        // Jitter with 90 max total diff
+        // If real=+range fake=-range, diff=2*range must be <=90, so range<=45
+        // Use jitter_half = clamp(range, 45)
         if (m_jitter_random)
         {
-            // Random jitter within radius
+            // Random jitter within half range (so total diff <=90)
             float random_yaw = 0.0f;
             __try {
-                // Random between -range and +range
-                random_yaw = static_cast<float>(rand() % (int)(m_jitter_range * 2 + 1)) - m_jitter_range;
-            } __except(EXCEPTION_EXECUTE_HANDLER) { random_yaw = m_jitter_range; }
+                // Random between -half and +half
+                float range = fabs(jitter_half);
+                if (range < 1.0f) range = MAX_JITTER_HALF_2014;
+                random_yaw = static_cast<float>(rand() % (int)(range * 2 + 1)) - range;
+            } __except(EXCEPTION_EXECUTE_HANDLER) { random_yaw = jitter_half; }
             
             if (send_packet)
             {
@@ -192,17 +215,16 @@ void c_antiaim::run_yaw(CUserCmd* cmd, bool& send_packet)
             }
             else
             {
-                fake.yaw = original.yaw - random_yaw;
+                fake.yaw = original.yaw - random_yaw; // opposite side, diff = 2*random <=90
                 cmd->m_viewangles.yaw = fake.yaw;
                 m_fake_angle = fake;
             }
         }
         else
         {
-            // Fixed jitter: switch between +radius and -radius every tick (max speed)
-            // e.g., range=45 => yaw = original +45 / original -45 each tick
-            // For desync: real = +range, fake = -range
-            float jitter_val = m_jitter_side ? m_jitter_range : -m_jitter_range;
+            // Fixed jitter: switch between +half and -half every tick (max speed)
+            // diff = 2*half <=90
+            float jitter_val = m_jitter_side ? jitter_half : -jitter_half;
             
             if (send_packet)
             {
@@ -212,7 +234,7 @@ void c_antiaim::run_yaw(CUserCmd* cmd, bool& send_packet)
             }
             else
             {
-                fake.yaw = original.yaw - jitter_val;
+                fake.yaw = original.yaw - jitter_val; // opposite, total 90 max
                 cmd->m_viewangles.yaw = fake.yaw;
                 m_fake_angle = fake;
             }
@@ -220,19 +242,32 @@ void c_antiaim::run_yaw(CUserCmd* cmd, bool& send_packet)
         break;
 
     case EAntiAimYaw::SPIN:
-        // Spin speed also based on jitter range for configurability
-        m_spin_yaw += m_jitter_range * 0.5f; // spin speed proportional to range
+        m_spin_yaw += clamped_range * 0.5f;
         if (m_spin_yaw > 180.0f) m_spin_yaw -= 360.0f;
         if (m_spin_yaw < -180.0f) m_spin_yaw += 360.0f;
-        cmd->m_viewangles.yaw = original.yaw + m_spin_yaw;
-        m_real_angle = cmd->m_viewangles;
+
+        // For spin with desync: real = spin, fake = spin + 90 max
+        real.yaw = original.yaw + m_spin_yaw;
+        fake.yaw = real.yaw + MAX_DESYNC_2014;
+
+        if (send_packet)
+        {
+            cmd->m_viewangles.yaw = real.yaw;
+            m_real_angle = real;
+        }
+        else
+        {
+            cmd->m_viewangles.yaw = fake.yaw;
+            m_fake_angle = fake;
+        }
         break;
 
     case EAntiAimYaw::DESYNC:
     default:
-        // Desync with configurable radius: fake = original + range
+        // Desync: real = original, fake = original + clamped_range (max 90)
+        // This is proper 2014 desync: 90 max, if set more real moves away
         real.yaw = original.yaw;
-        fake.yaw = original.yaw + m_jitter_range; // use configurable radius instead of fixed 180
+        fake.yaw = original.yaw + clamped_range; // max 90
 
         if (g_packet_manager)
         {

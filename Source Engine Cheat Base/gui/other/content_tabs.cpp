@@ -28,7 +28,7 @@ void c_gui::draw_rage_tab()
             ImGui::Combo("Resolver Mode", &g_variables->ragebot_resolver_mode, resolver_modes, IM_ARRAYSIZE(resolver_modes));
             ImGui::Text("Uses lag records to detect jitter pattern");
             ImGui::Text("Fixed jitter: avg of +range/-range = real");
-            ImGui::Text("Random jitter: bruteforce 0/180/90/-90");
+            ImGui::Text("Fixed: avg center, Random: avg+velocity (no brute)");
         }
     }
 
@@ -46,11 +46,13 @@ void c_gui::draw_rage_tab()
             
             ImGui::Separator();
             ImGui::Text("Jitter Settings - Configurable Radius, Max Speed");
-            ImGui::SliderInt("Jitter Yaw Radius", &g_variables->antiaim_jitter_range, 0, 180);
+            ImGui::SliderInt("Jitter Yaw Radius (max 90 in 2014)", &g_variables->antiaim_jitter_range, 0, 90);
             ImGui::SliderInt("Jitter Pitch Radius", &g_variables->antiaim_jitter_range_pitch, 0, 89);
             ImGui::Checkbox("Random Jitter (within radius)", &g_variables->antiaim_jitter_random);
             ImGui::SliderInt("Jitter Speed (1=max speed every tick)", &g_variables->antiaim_jitter_speed, 1, 10);
             ImGui::Text("Max speed = jitter every tick, default jitters");
+            ImGui::Text("2014 LIMIT: fake max 90 deg total, >90 real moves!");
+            ImGui::Text("For jitter +-range, max range=45 (diff 90)");
             
             ImGui::Separator();
             ImGui::Text("Packet Manager (2014, no LBY)");
@@ -61,6 +63,7 @@ void c_gui::draw_rage_tab()
             ImGui::Text("Info: 2014 fake = simple bSendPacket choke");
             ImGui::Text("Real = server sees, Fake = enemies see");
             ImGui::Text("No LBY in 2014 build");
+            ImGui::Text("MAX DESYNC 2014 = 90 deg, >90 real uedet");
         }
     }
 }
