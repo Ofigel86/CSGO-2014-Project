@@ -80,16 +80,10 @@ public:
         return is_knife() || is_grenade() || (m_item_definition_index() == WEAPON_C4);
     }
 
+    // Updated indices +1 for target version (2014-10-23 build, VClient016)
+    // Previous: 458, 459, 460, 430
+    // New: 459, 460, 461, 431 as requested
     float get_inaccuracy()
-    {
-        if (!this)
-            return 0.0f;
-        auto fn = call_virtual<float(__thiscall*)(void*)>(this, 458);
-        if (!fn) return 0.0f;
-        __try { return fn(this); } __except(EXCEPTION_EXECUTE_HANDLER) { return 0.0f; }
-    }
-
-    float get_spread()
     {
         if (!this)
             return 0.0f;
@@ -98,11 +92,20 @@ public:
         __try { return fn(this); } __except(EXCEPTION_EXECUTE_HANDLER) { return 0.0f; }
     }
 
+    float get_spread()
+    {
+        if (!this)
+            return 0.0f;
+        auto fn = call_virtual<float(__thiscall*)(void*)>(this, 460);
+        if (!fn) return 0.0f;
+        __try { return fn(this); } __except(EXCEPTION_EXECUTE_HANDLER) { return 0.0f; }
+    }
+
     void update_accuracy_penalty()
     {
         if (!this)
             return;
-        auto fn = call_virtual<void(__thiscall*)(void*)>(this, 460);
+        auto fn = call_virtual<void(__thiscall*)(void*)>(this, 461);
         if (!fn) return;
         __try { fn(this); } __except(EXCEPTION_EXECUTE_HANDLER) {}
     }
@@ -112,7 +115,7 @@ public:
         if (!this)
             return nullptr;
         using Fn = weapon_info*(__thiscall*)(void*);
-        auto fn = call_virtual<Fn>(this, 430);
+        auto fn = call_virtual<Fn>(this, 431);
         if (!fn) return nullptr;
         __try { return fn(this); } __except(EXCEPTION_EXECUTE_HANDLER) { return nullptr; }
     }
