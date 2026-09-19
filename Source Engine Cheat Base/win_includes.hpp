@@ -1,8 +1,8 @@
 #pragma once
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
-#include <Windows.h>
-#include <Psapi.h>
+#include <windows.h>
+#include <psapi.h>
 #include <cstdint>
 #include <iomanip>
 #include <iostream>

@@ -1,6 +1,6 @@
 #include "config.hpp"
 
-#include <Windows.h>
+#include <windows.h>
 
 c_keybinds* g_keybinds = new c_keybinds();
 

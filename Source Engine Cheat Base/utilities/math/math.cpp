@@ -1,6 +1,6 @@
 #include "math.hpp"
 
-#include <Windows.h>
+#include <windows.h>
 
 c_math* g_math = new c_math();
 

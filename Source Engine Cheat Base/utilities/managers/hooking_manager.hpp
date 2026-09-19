@@ -1,7 +1,8 @@
+#include <cstring>
 #pragma once
 #define NOMINMAX
 
-#include <Windows.h>
+#include <windows.h>
 #include <cstdint>
 #include <stdexcept>
 #include <cassert>

@@ -2,7 +2,8 @@
 
 #include <limits>
 #include "Vector.hpp"
-#include <DirectXMath.h>
+#include <cmath>
+namespace DirectX { inline void XMScalarSinCos(float* s, float* c, float v) { if(s) *s = sinf(v); if(c) *c = cosf(v); } }
 
 class Quaternion
 {

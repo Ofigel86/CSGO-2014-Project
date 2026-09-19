@@ -1,3 +1,4 @@
+#include <cfloat>
 #pragma once
 #include <sstream>
 
