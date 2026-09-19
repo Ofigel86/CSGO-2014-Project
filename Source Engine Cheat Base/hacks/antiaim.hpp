@@ -49,10 +49,18 @@ public:
     QAngle m_fake_angle = QAngle(0, 0, 0);
     
     bool m_jitter_side = false;
+    bool m_jitter_side_pitch = false;
     float m_spin_yaw = 0.0f;
+    int m_jitter_tick = 0;
     
     EAntiAimYaw m_yaw_mode = EAntiAimYaw::DESYNC;
     EAntiAimPitch m_pitch_mode = EAntiAimPitch::DOWN;
+    
+    // Configurable jitter radius - default jitters at max speed
+    float m_jitter_range = 45.0f; // yaw jitter radius
+    float m_jitter_range_pitch = 10.0f; // pitch jitter radius
+    bool m_jitter_random = false;
+    int m_jitter_speed = 1; // 1 = every tick (max speed)
     
     bool m_is_active = false;
 };
