@@ -18,11 +18,17 @@ public:
     bool legitbot_enabled = false;
 
     bool antiaim_enabled = false;
-    int antiaim_yaw_mode = 4; // 0-none,1-back,2-side,3-180,4-jitter,5-desync58,6-lby
+    int antiaim_yaw_mode = 4; // 0-none,1-back,2-side,3-180,4-jitter,5-desync,6-spin
     int antiaim_pitch_mode = 1; // 0-none,1-down,2-up,3-zero,4-jitter
     bool antiaim_fakelag_enabled = false;
     int antiaim_fakelag_ticks = 1;
     bool antiaim_lby_breaker = false;
+    
+    // Jitter settings - configurable radius, default jitters at max speed
+    int antiaim_jitter_range = 45; // radius for yaw jitter (e.g., 45 = +-45)
+    int antiaim_jitter_range_pitch = 10; // radius for pitch jitter
+    bool antiaim_jitter_random = false; // random jitter within range vs fixed
+    int antiaim_jitter_speed = 1; // 1 = max speed (every tick), 2 = every 2 ticks, etc.
 
     bool chams_enabled = false;
     bool chams_enemy_enabled = false;

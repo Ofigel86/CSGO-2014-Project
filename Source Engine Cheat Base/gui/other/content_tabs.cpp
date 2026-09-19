@@ -29,21 +29,29 @@ void c_gui::draw_rage_tab()
         {
             ImGui::Checkbox("Enable antiaim", &g_variables->antiaim_enabled);
             
-            const char* yaw_modes[] = { "None", "Backwards", "Sideways", "180", "Jitter", "Desync 58 (2014)", "LBY Breaker" };
-            const char* pitch_modes[] = { "None", "Down", "Up", "Zero", "Jitter" };
+            const char* yaw_modes[] = { "None", "Backwards", "Sideways", "180", "Jitter (config radius)", "Desync (config radius)", "Spin (config radius)" };
+            const char* pitch_modes[] = { "None", "Down", "Up", "Zero", "Jitter (config radius)" };
             
             ImGui::Combo("Yaw mode", &g_variables->antiaim_yaw_mode, yaw_modes, IM_ARRAYSIZE(yaw_modes));
             ImGui::Combo("Pitch mode", &g_variables->antiaim_pitch_mode, pitch_modes, IM_ARRAYSIZE(pitch_modes));
             
             ImGui::Separator();
-            ImGui::Text("Packet Manager (reversed from engine.dll)");
-            ImGui::Checkbox("Fake lag", &g_variables->antiaim_fakelag_enabled);
-            ImGui::SliderInt("Fake lag ticks", &g_variables->antiaim_fakelag_ticks, 1, 14);
-            ImGui::Checkbox("LBY breaker", &g_variables->antiaim_lby_breaker);
+            ImGui::Text("Jitter Settings - Configurable Radius, Max Speed");
+            ImGui::SliderInt("Jitter Yaw Radius", &g_variables->antiaim_jitter_range, 0, 180);
+            ImGui::SliderInt("Jitter Pitch Radius", &g_variables->antiaim_jitter_range_pitch, 0, 89);
+            ImGui::Checkbox("Random Jitter (within radius)", &g_variables->antiaim_jitter_random);
+            ImGui::SliderInt("Jitter Speed (1=max speed every tick)", &g_variables->antiaim_jitter_speed, 1, 10);
+            ImGui::Text("Max speed = jitter every tick, default jitters");
             
             ImGui::Separator();
-            ImGui::Text("Info: Desync 58 uses bSendPacket choking");
-            ImGui::Text("Real = server, Fake = enemies see");
+            ImGui::Text("Packet Manager (2014, no LBY)");
+            ImGui::Checkbox("Fake lag", &g_variables->antiaim_fakelag_enabled);
+            ImGui::SliderInt("Fake lag ticks", &g_variables->antiaim_fakelag_ticks, 1, 14);
+            
+            ImGui::Separator();
+            ImGui::Text("Info: 2014 fake = simple bSendPacket choke");
+            ImGui::Text("Real = server sees, Fake = enemies see");
+            ImGui::Text("No LBY in 2014 build");
         }
     }
 }
