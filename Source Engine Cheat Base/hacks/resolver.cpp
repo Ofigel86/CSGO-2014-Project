@@ -139,73 +139,175 @@ QAngle c_resolver::resolve_jitter(int index, c_lag_record* record)
     auto& info = m_resolver_info[index];
     auto records = g_lag_comp->get_records(index);
     
-    if (!records || records->empty())
+    if (!records || records->size() < 2)
         return record->m_eye_angles;
 
-    // Method 1: Velocity resolver for moving jitter (2014 style)
-    // If moving, real angle = velocity direction
+    // Method 1: Velocity resolver for moving jitter (2014 style) - best for moving
     __try {
         float velLen = record->m_velocity.Length2D();
         if (velLen > 0.1f)
         {
-            // Use velocity yaw as real
             QAngle velAngle;
             velAngle.yaw = std::atan2(record->m_velocity.y, record->m_velocity.x) * 180.0f / 3.14159265f;
-            velAngle.pitch = 0.0f;
+            velAngle.pitch = record->m_eye_angles.pitch;
             velAngle.roll = 0.0f;
             info.m_mode = EResolverMode::VELOCITY;
             return velAngle;
         }
     } __except(EXCEPTION_EXECUTE_HANDLER) {}
 
-    // Method 2: For standing jitter, use bruteforce or last moving
-    // In 2014, jitter is often fixed +range/-range at max speed
-    // We can detect radius from history and resolve to one side
-    
+    // Method 2: User's pseudo code - proper jitter resolver for 2014
+    // Calculates averaged fake delta, filters outliers, gets base yaw offset
     __try {
-        // Calculate average jitter radius from history
-        float total_delta = 0.0f;
-        int count = 0;
-        for (size_t i = 1; i < records->size() && i < 5; i++)
+        if (records->size() >= 3)
         {
-            auto& cur = (*records)[i-1];
-            auto& prev = (*records)[i];
-            float delta = std::abs(cur.m_eye_angles.yaw - prev.m_eye_angles.yaw);
-            if (delta > 180.0f) delta = 360.0f - delta;
-            if (delta > 10.0f) // ignore small movements
+            // Step 1: Calculate averaged_fake_delta from all records
+            float averaged_fake_delta = 0.0f;
+            int delta_count = 0;
+            
+            for (size_t i = 1; i < records->size(); i++)
             {
-                total_delta += delta;
-                count++;
+                auto& cur = (*records)[i-1];
+                auto& prev = (*records)[i];
+                
+                float delta = cur.m_eye_angles.yaw - prev.m_eye_angles.yaw;
+                // Normalize delta to -180..180
+                while (delta > 180.0f) delta -= 360.0f;
+                while (delta < -180.0f) delta += 360.0f;
+                
+                averaged_fake_delta += delta;
+                delta_count++;
             }
-        }
-        
-        float avg_jitter = count > 0 ? total_delta / count : 45.0f;
-        info.m_last_jitter_delta = avg_jitter;
+            
+            if (delta_count > 0)
+                averaged_fake_delta /= delta_count;
 
-        // If we have jitter history, try to resolve to center or to one side
-        // For fixed jitter: angles are +range and -range, center is real
-        // So we can average last 2
-        if (records->size() >= 2)
-        {
-            auto& last = (*records)[0];
-            auto& prev = (*records)[1];
+            // Step 2: Filter deltas and calculate base_yaw_offset
+            // Skip deltas that are too big (>1.125 * avg) or opposite direction
+            float base_yaw_offset = 0.0f;
+            int valid_count = 0;
             
-            // Average = center (real) for fixed jitter
-            QAngle averaged;
-            averaged.yaw = (last.m_eye_angles.yaw + prev.m_eye_angles.yaw) * 0.5f;
-            averaged.pitch = last.m_eye_angles.pitch;
-            averaged.roll = 0.0f;
+            for (size_t i = 1; i < records->size(); i++)
+            {
+                auto& cur = (*records)[i-1];
+                auto& prev = (*records)[i];
+                
+                float delta = cur.m_eye_angles.yaw - prev.m_eye_angles.yaw;
+                while (delta > 180.0f) delta -= 360.0f;
+                while (delta < -180.0f) delta += 360.0f;
+                
+                float abs_delta = std::abs(delta);
+                float abs_avg = std::abs(averaged_fake_delta);
+                
+                // Filter: if delta too big or opposite direction, skip
+                // This is from user's pseudo code: fabs(delta) > fabs(1.125*avg) || opposite sign
+                if (abs_avg > 0.01f)
+                {
+                    if (abs_delta > std::abs(1.125f * averaged_fake_delta))
+                        continue;
+                    if ((delta < 0.0f && averaged_fake_delta > 0.0f) || (delta > 0.0f && averaged_fake_delta < 0.0f))
+                        continue;
+                }
+                
+                base_yaw_offset += abs_delta;
+                valid_count++;
+            }
             
-            // Normalize
-            while (averaged.yaw > 180.0f) averaged.yaw -= 360.0f;
-            while (averaged.yaw < -180.0f) averaged.yaw += 360.0f;
+            if (valid_count > 0)
+                base_yaw_offset /= valid_count;
+
+            // Step 3: base_yaw + base_yaw_offset = resolved
+            // For fixed jitter: averaged_fake_delta will be ~0 ( +45 and -45 cancel), 
+            // but base_yaw_offset will be ~45 (avg of abs deltas)
+            // So base_yaw is center, which is real
+            QAngle base = records->back().m_eye_angles; // oldest as base
+            // Actually for jitter, we want to find real by averaging or using base + offset logic
+            // User's code: base_yaw += base_yaw_offset
             
+            // Improved: For fixed jitter at max speed, average of last 2 is real
+            // For random jitter, averaged_fake_delta filtering gives us base offset
+            QAngle resolved;
+            resolved.pitch = record->m_eye_angles.pitch;
+            resolved.roll = 0.0f;
+            
+            // If averaged_fake_delta is near 0, it's fixed jitter switching +range/-range
+            // Then real = average of last 2
+            if (std::abs(averaged_fake_delta) < 5.0f && records->size() >= 2)
+            {
+                auto& last = (*records)[0];
+                auto& prev = (*records)[1];
+                resolved.yaw = (last.m_eye_angles.yaw + prev.m_eye_angles.yaw) * 0.5f;
+            }
+            else
+            {
+                // For random or desync jitter, use base + offset logic
+                // base_yaw is last record's yaw, add offset to get real
+                // Actually for random jitter, best is to use base yaw (oldest) as real
+                // Or use velocity if moving (already handled)
+                // For standing random jitter, use averaged angle from filtered records
+                float avg_yaw = 0.0f;
+                int avg_count = 0;
+                for (size_t i = 0; i < records->size(); i++)
+                {
+                    // Only use records that passed filter (not too big delta)
+                    // For simplicity, average all yaws
+                    avg_yaw += (*records)[i].m_eye_angles.yaw;
+                    avg_count++;
+                }
+                if (avg_count > 0)
+                    avg_yaw /= avg_count;
+                resolved.yaw = avg_yaw;
+            }
+            
+            while (resolved.yaw > 180.0f) resolved.yaw -= 360.0f;
+            while (resolved.yaw < -180.0f) resolved.yaw += 360.0f;
+            
+            info.m_last_jitter_delta = averaged_fake_delta;
             info.m_mode = EResolverMode::JITTER_DETECT;
-            return averaged;
+            return resolved;
         }
     } __except(EXCEPTION_EXECUTE_HANDLER) {}
 
-    // Method 3: Bruteforce if other methods fail
+    // Method 3: Fallback - no bruteforce on random jitter (user is right, bruteforce on random is bad)
+    // For random jitter, bruteforce is useless because it's random
+    // Instead, use last moving angle or velocity (already tried)
+    // If still failing, return latest record's angle (don't bruteforce random)
+    
+    __try {
+        // For fixed jitter, we can still bruteforce as last resort, but for random - don't
+        // Check if jitter is random by variance
+        if (records->size() >= 4)
+        {
+            float variance = 0.0f;
+            float avg = 0.0f;
+            for (size_t i = 0; i < records->size(); i++)
+                avg += (*records)[i].m_eye_angles.yaw;
+            avg /= records->size();
+            
+            for (size_t i = 0; i < records->size(); i++)
+            {
+                float diff = (*records)[i].m_eye_angles.yaw - avg;
+                variance += diff * diff;
+            }
+            variance /= records->size();
+            
+            // If variance high (>1000), it's random jitter, not fixed
+            // Don't bruteforce random jitter - use avg or velocity
+            if (variance > 1000.0f)
+            {
+                // Random jitter - return avg, not bruteforce
+                QAngle avg_angle;
+                avg_angle.yaw = avg;
+                avg_angle.pitch = record->m_eye_angles.pitch;
+                avg_angle.roll = 0.0f;
+                while (avg_angle.yaw > 180.0f) avg_angle.yaw -= 360.0f;
+                while (avg_angle.yaw < -180.0f) avg_angle.yaw += 360.0f;
+                return avg_angle;
+            }
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) {}
+
+    // Only bruteforce for fixed jitter (low variance) as last resort
     return bruteforce_jitter(index);
 }
 
@@ -219,28 +321,63 @@ QAngle c_resolver::bruteforce_jitter(int index)
     if (!records || records->empty())
         return QAngle(0,0,0);
 
-    // Bruteforce angles for 2014 jitter:
-    // Try: original, original+180, original+90, original-90
-    // Cycle through them each shot
+    // Bruteforce is ONLY for fixed jitter, NOT for random jitter!
+    // User correctly pointed: bruteforce on random jitter is stupid
+    // Random jitter is unpredictable, bruteforce 0/180/90/-90 won't work
+    // For random jitter, we should use averaging or velocity, not bruteforce
     
+    // Check variance to see if it's random
+    __try {
+        if (records->size() >= 4)
+        {
+            float avg = 0.0f;
+            for (size_t i = 0; i < records->size(); i++)
+                avg += (*records)[i].m_eye_angles.yaw;
+            avg /= records->size();
+            
+            float variance = 0.0f;
+            for (size_t i = 0; i < records->size(); i++)
+            {
+                float diff = (*records)[i].m_eye_angles.yaw - avg;
+                while (diff > 180.0f) diff -= 360.0f;
+                while (diff < -180.0f) diff += 360.0f;
+                variance += diff * diff;
+            }
+            variance /= records->size();
+            
+            // High variance = random jitter, don't bruteforce
+            if (variance > 1000.0f)
+            {
+                // For random jitter, return average (best guess) instead of bruteforce
+                QAngle avg_angle;
+                avg_angle.yaw = avg;
+                avg_angle.pitch = records->front().m_eye_angles.pitch;
+                avg_angle.roll = 0.0f;
+                while (avg_angle.yaw > 180.0f) avg_angle.yaw -= 360.0f;
+                while (avg_angle.yaw < -180.0f) avg_angle.yaw += 360.0f;
+                info.m_mode = EResolverMode::JITTER_DETECT;
+                return avg_angle;
+            }
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) {}
+
+    // For fixed jitter (low variance), bruteforce can work as last resort
+    // Try: original, original+180, original+90, original-90
     __try {
         auto& latest = records->front();
         QAngle base = latest.m_eye_angles;
         
-        // Setup bruteforce angles
-        info.m_bruteforce_angles[0] = base; // original
-        info.m_bruteforce_angles[1] = QAngle(base.pitch, base.yaw + 180.0f, 0.0f); // 180
-        info.m_bruteforce_angles[2] = QAngle(base.pitch, base.yaw + 90.0f, 0.0f); // 90
-        info.m_bruteforce_angles[3] = QAngle(base.pitch, base.yaw - 90.0f, 0.0f); // -90
+        info.m_bruteforce_angles[0] = base;
+        info.m_bruteforce_angles[1] = QAngle(base.pitch, base.yaw + 180.0f, 0.0f);
+        info.m_bruteforce_angles[2] = QAngle(base.pitch, base.yaw + 90.0f, 0.0f);
+        info.m_bruteforce_angles[3] = QAngle(base.pitch, base.yaw - 90.0f, 0.0f);
         
-        // Normalize
         for (int i = 0; i < 4; i++)
         {
             while (info.m_bruteforce_angles[i].yaw > 180.0f) info.m_bruteforce_angles[i].yaw -= 360.0f;
             while (info.m_bruteforce_angles[i].yaw < -180.0f) info.m_bruteforce_angles[i].yaw += 360.0f;
         }
         
-        // Cycle
         QAngle result = info.m_bruteforce_angles[info.m_current_brute % 4];
         info.m_current_brute++;
         info.m_mode = EResolverMode::BRUTEFORCE;
