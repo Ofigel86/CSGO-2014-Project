@@ -3,6 +3,8 @@
 #include "../../hacks/ragebot.hpp"
 #include "../../hacks/legitbot.hpp"
 #include "../../hacks/nospread.hpp"
+#include "../../hacks/antiaim.hpp"
+#include "../../utilities/managers/packet_manager.hpp"
 
 void __fastcall hk_create_move(void* ecx, void* edx, int sequence_number, float input_sample_time, bool active)
 {
@@ -33,10 +35,22 @@ void __fastcall hk_create_move(void* ecx, void* edx, int sequence_number, float 
         return;
 
     PBYTE send_packet_ptr = nullptr;
+    bool* bSendPacket = nullptr;
     __try {
         if (frame_ptr)
+        {
             send_packet_ptr = reinterpret_cast<PBYTE>(*reinterpret_cast<PDWORD>(frame_ptr) - 0x1);
-    } __except(EXCEPTION_EXECUTE_HANDLER) { send_packet_ptr = nullptr; }
+            bSendPacket = reinterpret_cast<bool*>(send_packet_ptr);
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) { send_packet_ptr = nullptr; bSendPacket = nullptr; }
+
+    // Update packet manager with bSendPacket pointer (reversed from CL_Move)
+    if (g_packet_manager && bSendPacket)
+    {
+        __try {
+            g_packet_manager->update(bSendPacket);
+        } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
 
     CUserCmd* command = nullptr;
     CVerifiedUserCmd* verified_command = nullptr;
@@ -69,6 +83,46 @@ void __fastcall hk_create_move(void* ecx, void* edx, int sequence_number, float 
     {
         g_movement->bunny_hop(command);
         g_movement->auto_strafe(command);
+    }
+
+    // Packet manager + AntiAim (Fake Angle) - reversed from client.dll
+    // In 2014 build, fake angles work by choking packets with bSendPacket = false
+    bool bSendPacketState = true;
+    if (bSendPacket)
+        bSendPacketState = *bSendPacket;
+
+    if (g_antiaim)
+    {
+        __try {
+            g_antiaim->instance(command, bSendPacketState);
+        } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
+
+    // Apply bSendPacket state back to game (packet manager)
+    if (bSendPacket && g_packet_manager)
+    {
+        __try {
+            *bSendPacket = bSendPacketState;
+            g_packet_manager->set_send_packet(bSendPacketState);
+        } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
+
+    // Fake lag management (part of packet manager)
+    if (g_packet_manager && g_variables && g_variables->antiaim_fakelag_enabled)
+    {
+        __try {
+            int choked = g_packet_manager->get_choked_commands();
+            if (choked < g_variables->antiaim_fakelag_ticks)
+            {
+                if (bSendPacket)
+                    *bSendPacket = false;
+            }
+            else
+            {
+                if (bSendPacket)
+                    *bSendPacket = true;
+            }
+        } __except(EXCEPTION_EXECUTE_HANDLER) {}
     }
 
     if (g_ragebot)

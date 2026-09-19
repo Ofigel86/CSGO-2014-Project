@@ -18,6 +18,11 @@ public:
     bool legitbot_enabled = false;
 
     bool antiaim_enabled = false;
+    int antiaim_yaw_mode = 4; // 0-none,1-back,2-side,3-180,4-jitter,5-desync58,6-lby
+    int antiaim_pitch_mode = 1; // 0-none,1-down,2-up,3-zero,4-jitter
+    bool antiaim_fakelag_enabled = false;
+    int antiaim_fakelag_ticks = 1;
+    bool antiaim_lby_breaker = false;
 
     bool chams_enabled = false;
     bool chams_enemy_enabled = false;
